@@ -1,0 +1,98 @@
+---
+title: "STA 141A Group Project (Data cleaning)"
+author: "Lijing Chen"
+date: "12/8/2020"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Data Cleaning 
+```{r}
+rm(list=ls())
+#library(caret)
+require(fastDummies)
+library(tidyr)
+library(dplyr)
+
+# Import data
+dataset<- read.csv("bank-additional-full.csv", sep=";")
+```
+
+```{r}
+# Remove the unknowns 
+dataset <- dataset[dataset$education != 'unknown' & dataset$default != "unknown"
+                   & dataset$job != "unknown" & dataset$marital != "unknown" 
+                    & dataset$housing != "unknown" & dataset$loan != "unknow",]
+```
+
+```{r}
+# one hot encoding for 'education' and 'marital' 
+clean_data <- dummy_cols(dataset,select_columns = c("marital","job","education"))
+# Remove the original 'education' and 'marital' column
+clean_data$marital <- NULL
+clean_data$education <- NULL
+clean_data$job <- NULL
+
+# Create dummy for 'default' 1(yes);0(no)
+clean_data <- clean_data %>% mutate(default.dum = ifelse(as.character(default)== 'yes',1,0))
+# Remove the original 'default' column
+clean_data$default <- NULL
+
+# Create dummy for 'housing' 1(yes);0(no)
+clean_data <- clean_data %>% mutate(housing.dum = ifelse(as.character(housing)== 'yes',1,0))
+# Remove the original 'housing' column
+clean_data$housing <- NULL
+
+# Create dummy for 'loan' 1(yes);0(no)
+clean_data <- clean_data %>% mutate(loan.dum = ifelse(as.character(loan)== 'yes',1,0)) 
+# Remove the original 'loan' column
+clean_data$loan <- NULL
+
+# Create dummy for 'contact' 1(telephone);0(cellular)
+clean_data <- clean_data %>% mutate(contact.dum = ifelse(as.character(contact)== 'telephone',1,0)) 
+# Remove the original 'contact' column
+clean_data$contact <- NULL
+
+# y dummy(subscribed a term deposit) 1(yes);0(otherwise)
+clean_data <- clean_data%>% mutate(y.dum = ifelse(as.character(y)== 'yes',1,0))
+# remove the original 'y' column
+clean_data$y <- NULL
+
+# poutcome dummy (previous marketing campaign result) 1(success);0(failure or nonexistent)
+clean_data <- clean_data%>% mutate(poutcome.dum = ifelse(as.character(poutcome)== 'success',1,0))
+# Remove the original 'poutcome' column
+clean_data$poutcome <- NULL
+
+# 'duration' is not useful for predictive purpose because it has strong relationship with the output variable (y)
+clean_data$duration <- NULL
+```
+
+```{r}
+# Without month & day_of_week 
+# The two columns (last contact month of year) and (last contact day of the week) are not useful for our prediction, so we eliminate them in our data
+cl_data <- clean_data
+cl_data$month <- NULL
+cl_data$day_of_week <- NULL
+```
+
+```{r}
+# One hot encoding for 'education' and 'marital' 
+clean_data <- dummy_cols(clean_data,select_columns = c("month","day_of_week"))
+# Remove the original 'month' and 'day_of_week' column
+clean_data$month <- NULL
+clean_data$day_of_week <- NULL
+
+head(clean_data)
+```
+
+## Neural Network 
+
+
+
+
+
