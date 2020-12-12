@@ -1,0 +1,205 @@
+---
+title: "STA141 Final Project"
+author: "Lijing Chen"
+date: "12/12/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction 
+In this project, we apply algorithms Bootstrapping, Regression Trees, LASSO, Logistic Regression, Stepwise regression, Neural Network to explore several research questions:
+1. What profiles of clients that tend to be contacted multiple times?
+2. What are the key attributes that influence the clients’ decisions on whether to subscribe to a term deposit in the bank?
+3. What is the relationship between the profiles of clients between whether one subscribes to a term deposit in the ban? 
+ 
+## Dataset Description 
+The dataset "bank additional full" obtained from UCI contains 21 columns with 20 predictors and one response variable. The dataset contains 41188 observations. 
+Bank client data (Input variables):
+   1 - age (numeric)
+   2 - job : type of job (categorical: "admin.","blue-collar","entrepreneur","housemaid","management","retired","self-employed","services","student","technician","unemployed","unknown")
+   3 - marital : marital status (categorical: "divorced","married","single","unknown"; note: "divorced" means divorced or widowed)
+   4 - education (categorical: "basic.4y","basic.6y","basic.9y","high.school","illiterate","professional.course","university.degree","unknown")
+   5 - default: has credit in default? (categorical: "no","yes","unknown")
+   6 - housing: has housing loan? (categorical: "no","yes","unknown")
+   7 - loan: has personal loan? (categorical: "no","yes","unknown")
+   # related with the last contact of the current campaign:
+   8 - contact: contact communication type (categorical: "cellular","telephone") 
+   9 - month: last contact month of year (categorical: "jan", "feb", "mar", ..., "nov", "dec")
+  10 - day_of_week: last contact day of the week (categorical: "mon","tue","wed","thu","fri")
+  11 - duration: last contact duration, in seconds (numeric). Important note:  this attribute highly affects the output target (e.g., if duration=0 then y="no"). Yet, the duration is not known before a call is performed. Also, after the end of the call y is obviously known. Thus, this input should only be included for benchmark purposes and should be discarded if the intention is to have a realistic predictive model.
+   # other attributes:
+  12 - campaign: number of contacts performed during this campaign and for this client (numeric, includes last contact)
+  13 - pdays: number of days that passed by after the client was last contacted from a previous campaign (numeric; 999 means client was not previously contacted)
+  14 - previous: number of contacts performed before this campaign and for this client (numeric)
+  15 - poutcome: outcome of the previous marketing campaign (categorical: "failure","nonexistent","success")
+   # social and economic context attributes
+  16 - emp.var.rate: employment variation rate - quarterly indicator (numeric)
+  17 - cons.price.idx: consumer price index - monthly indicator (numeric)     
+  18 - cons.conf.idx: consumer confidence index - monthly indicator (numeric)     
+  19 - euribor3m: euribor 3 month rate - daily indicator (numeric)
+  20 - nr.employed: number of employees - quarterly indicator (numeric)
+
+  Output variable (desired target):
+  21 - y - has the client subscribed a term deposit? (binary: "yes","no")
+
+## Methologies 
+# Regression Tree 
+Basic regression trees partition a data set into smaller groups and then fit a simple model (constant) for each subgroup.
+# Bootstapping 
+Bootstrapping is a resampling technique used to estimate statistics on a population by sampling a dataset with replacement. 
+# LASSO 
+Lasso is a regression analysis method that performs both variable selection and regularization in order to enhance the prediction accuracy and interpretability of the statistical model it produces
+# Stepwise regression 
+stepwise regression is a method of fitting regression models in which the choice of predictive variables is carried out by an automatic procedure. In each step, a variable is considered for addition to or subtraction from the set of explanatory variables based on some prespecified criterion.
+# Logistic Regression 
+Logistic regression is a statistical model that in its basic form uses a logistic function to model a binary dependent variable, although many more complex extensions exist. 
+# Artificial Neural Network
+Artificial neural networks, usually simply called neural networks, is an supervised machine learning method that to recognize underlying relationships in a set of data through a process that mimics the way the human brain operates.
+
+## Data Cleaning
+```{r}
+rm(list=ls())
+#library(caret)
+require(fastDummies)
+library(tidyr)
+library(dplyr)
+
+# Import data
+dataset<- read.csv("/cloud/project/bank-additional.csv", sep=";")
+```
+
+```{r}
+# Remove the unknowns 
+dataset <- dataset[dataset$education != 'unknown' & dataset$default != "unknown"
+                   & dataset$job != "unknown" & dataset$marital != "unknown" 
+                    & dataset$housing != "unknown" & dataset$loan != "unknow",]
+```
+
+```{r}
+# one hot encoding for 'education' and 'marital' 
+clean_data <- dummy_cols(dataset,select_columns = c("marital","job","education"))
+# Remove the original 'education' and 'marital' column
+clean_data$marital <- NULL
+clean_data$education <- NULL
+clean_data$job <- NULL
+
+# Create dummy for 'default' 1(yes);0(no)
+clean_data <- clean_data %>% mutate(default.dum = ifelse(as.character(default)== 'yes',1,0))
+# Remove the original 'default' column
+clean_data$default <- NULL
+
+# Create dummy for 'housing' 1(yes);0(no)
+clean_data <- clean_data %>% mutate(housing.dum = ifelse(as.character(housing)== 'yes',1,0))
+# Remove the original 'housing' column
+clean_data$housing <- NULL
+
+# Create dummy for 'loan' 1(yes);0(no)
+clean_data <- clean_data %>% mutate(loan.dum = ifelse(as.character(loan)== 'yes',1,0)) 
+# Remove the original 'loan' column
+clean_data$loan <- NULL
+
+# Create dummy for 'contact' 1(telephone);0(cellular)
+clean_data <- clean_data %>% mutate(contact.dum = ifelse(as.character(contact)== 'telephone',1,0)) 
+# Remove the original 'contact' column
+clean_data$contact <- NULL
+
+# y dummy(subscribed a term deposit) 1(yes);0(otherwise)
+clean_data <- clean_data%>% mutate(y.dum = ifelse(as.character(y)== 'yes',1,0))
+# remove the original 'y' column
+clean_data$y <- NULL
+
+# poutcome dummy (previous marketing campaign result) 1(success);0(failure or nonexistent)
+clean_data <- clean_data%>% mutate(poutcome.dum = ifelse(as.character(poutcome)== 'success',1,0))
+# Remove the original 'poutcome' column
+clean_data$poutcome <- NULL
+
+# 'duration' is not useful for predictive purpose because it has strong relationship with the output variable (y)
+clean_data$duration <- NULL
+```
+
+```{r}
+# Without month & day_of_week 
+# The two columns (last contact month of year) and (last contact day of the week) are not useful for our prediction, so we eliminate them in our data
+cl_data <- clean_data
+cl_data$month <- NULL
+cl_data$day_of_week <- NULL
+```
+
+```{r}
+clean_data$month <- as.numeric(as.factor(clean_data$month))
+clean_data$day_of_week <- as.numeric(as.factor(clean_data$day_of_week))
+clean_data$month <- NULL
+clean_data$day_of_week <- NULL
+
+
+head(clean_data)
+```
+
+## Neural Network 
+# Literature Review 
+In “Application of back-propagation neural network on bank
+destruction forecasting for accumulative landslides in the three
+Gorges Reservoir Region, China,” authors Changdong Li,  Huiming Tang, Yunfeng Ge, 
+Xinli Hu, and Liangqing Wang  conducted the bank destruction forecasting study for accumulative landslides in the Three Gorges Reservoir Region, China utilizing back-propagation (BP) neural network approach (Li et al. 1465). They consider  the neural network with back propagation has obvious advantages over the convention approaches in the terms of the fast calculation speed and high convenience. Therefore, in this project, we perform neural networks with back propagation to explore the relationship between the profiles of clients and whether the clients subscribe to a term deposit. 
+## Modelling
+```{r}
+require(neuralnet)
+smp_size <- floor(0.7 * nrow(clean_data))
+set.seed(1)
+train_ind <- sample(seq_len(nrow(clean_data)), size = smp_size)
+train <- clean_data[train_ind, ]
+train_y <- train$y.dum
+#train$y.dum <- NULL
+test <-clean_data[-train_ind,]
+test_y <- test$y.dum
+#test$y.dum <- NULL
+
+names(train)[names(train) == "job_blue-collar"] <- "job_blue_collar"
+names(train)[names(train) == "job_self-employed"] <- "job_self_employed"
+
+names(test)[names(test) == "job_blue-collar"] <- "job_blue_collar"
+
+names(test)[names(test) == "job_self-employed"] <- "job_self_employed"
+```
+
+```{r}
+nn <- neuralnet(y.dum ~age+campaign+pdays+previous+emp.var.rate+cons.price.idx+cons.conf.idx+euribor3m+nr.employed
+                +marital_divorced+marital_married+marital_single+job_admin.+`job_blue_collar`+job_entrepreneur+job_housemaid
+                +job_management+job_retired+job_self_employed+job_services+job_student+job_technician+job_unemployed
+                +education_basic.4y+education_basic.6y+education_basic.9y+education_high.school+education_illiterate
+                +education_professional.course+education_university.degree+default.dum+housing.dum+loan.dum+contact.dum+poutcome.dum,
+                data=train, hidden=c(2,2),act.fct = "logistic", err.fct = "sse",
+                linear.output = FALSE, lifesign = "minimal",rep = 100 )
+plot(nn,rep='best',col.hidden = 'darkgreen',
+     col.hidden.synapse = 'darkgreen',
+     show.weights = F,
+     information = F,
+     fill = 'lightblue')
+```
+
+```{r}
+summary(nn)
+### Training 
+set.seed(1)
+output1<-compute(nn, train)
+cl1 <- output1$net.result
+pred1 <- ifelse(cl1>0.5, 1, 0)
+```
+
+```{r}
+# confusion matrix 
+(tab1 <- table(pred1, train$y.dum))
+(miscal_err1 <- 1-sum(diag(tab1))/sum(tab1))
+```
+
+```{r}
+## Testing 
+output2<-compute(nn, test)
+cl2 <- output2$net.result
+pred2 <- ifelse(cl2>0.5, 1, 0)
+(tab2 <- table(pred2, test$y.dum))
+(miscal_err2 <- 1-sum(diag(tab2))/sum(tab2))
+```
